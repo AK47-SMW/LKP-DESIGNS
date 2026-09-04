@@ -1,2 +1,220 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notebook Viewer</title><link rel="stylesheet" href="style.css"><style>body.viewer{background:#181715;color:#f5f2ec;overflow:hidden}.viewer header{background:#181715;border-color:#34322e}.viewer header a,.viewer .brand{color:#f5f2ec}.top{height:calc(100vh - 76px);display:flex;flex-direction:column}.bar{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-bottom:1px solid #34322e}.bar button{background:#292723;color:#fff;border:1px solid #444039;border-radius:999px;padding:9px 14px;cursor:pointer}.stage{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:20px 70px}.stage iframe{width:min(100%,1100px);height:100%;border:0;background:#fff;border-radius:8px;box-shadow:0 20px 70px #0008}.arrow{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;border:1px solid #444039;background:#292723;color:white;font-size:24px;cursor:pointer}.prev{left:18px}.next{right:18px}.hint{text-align:center;font-size:12px;color:#928c84;padding:9px}.missing{max-width:600px;text-align:center;color:#b8b1a8;line-height:1.7}.missing code{color:#fff}.viewer:fullscreen .top{height:100vh}@media(max-width:650px){.stage{padding:10px 10px 25px}.stage iframe{width:100%}.arrow{bottom:5px;top:auto;transform:none}.prev{left:20px}.next{right:20px}}
-</style></head><body class="viewer"><header><div class="brand">NOTEBOOKS</div><nav><a href="index.html">← Collections</a></nav></header><div class="top"><div class="bar"><strong id="title">Collection</strong><div><button id="fullscreen">Fullscreen</button></div></div><div class="stage"><button class="arrow prev" aria-label="Previous">‹</button><iframe id="pdf" title="PDF viewer"></iframe><button class="arrow next" aria-label="Next">›</button><div id="missing" class="missing" hidden>Place the PDF at <code id="path"></code> and open this collection again.</div></div><div class="hint">Use your browser's PDF controls for zoom. On desktop, ← and → can be used to navigate the PDF viewer.</div></div><script>const q=new URLSearchParams(location.search);const pdf=q.get('pdf');document.querySelector('#title').textContent=q.get('title')||'Collection';const frame=document.querySelector('#pdf');const missing=document.querySelector('#missing');if(pdf){frame.src=pdf;document.querySelector('#path').textContent=pdf;frame.onerror=()=>{frame.hidden=true;missing.hidden=false}}document.querySelector('#fullscreen').onclick=()=>document.documentElement.requestFullscreen?.();document.querySelector('.prev').onclick=()=>window.history.back();document.querySelector('.next').onclick=()=>window.history.forward();document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')history.back();if(e.key==='ArrowRight')history.forward();});</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Notebook Viewer</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body.viewer{margin:0;background:#151513;color:#f5f2ec;overflow:hidden}
+    .viewer header{height:64px;padding:0 24px;background:#151513;border-bottom:1px solid #302e2a;box-sizing:border-box}
+    .viewer header a,.viewer .brand{color:#f5f2ec}
+    .viewer-shell{height:calc(100vh - 64px);display:flex;flex-direction:column}
+    .viewer-bar{height:58px;flex:0 0 58px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #302e2a;box-sizing:border-box}
+    .viewer-title{font-size:14px;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55vw}
+    .viewer-actions{display:flex;gap:8px}
+    .viewer-btn{border:1px solid #3c3934;background:#24221f;color:#f5f2ec;border-radius:999px;padding:8px 13px;font:inherit;font-size:12px;cursor:pointer}
+    .viewer-btn:hover{background:#302e2a}
+    .viewer-main{min-height:0;flex:1;display:flex;position:relative}
+    .page-area{min-width:0;flex:1;display:flex;align-items:center;justify-content:center;position:relative;padding:22px 76px;box-sizing:border-box}
+    #pdfCanvas{display:block;max-width:100%;max-height:100%;width:auto;height:auto;background:white;box-shadow:0 18px 60px #0009;border-radius:3px}
+    .nav-btn{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border:1px solid #3c3934;border-radius:50%;background:#24221f;color:#fff;font-size:28px;line-height:1;cursor:pointer;z-index:2}
+    .nav-btn:hover{background:#302e2a}
+    .nav-btn:disabled{opacity:.25;cursor:default}
+    #prevPage{left:18px}#nextPage{right:18px}
+    .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa49c;font-size:13px}
+    .loading.hidden{display:none}
+    .thumbs{height:92px;flex:0 0 92px;border-top:1px solid #302e2a;background:#1b1a18;display:flex;align-items:center;gap:10px;padding:10px 18px;overflow-x:auto;box-sizing:border-box}
+    .thumb{flex:0 0 auto;width:54px;height:70px;border:1px solid #3a3732;border-radius:3px;background:#fff;padding:0;cursor:pointer;overflow:hidden;opacity:.6;position:relative}
+    .thumb:hover{opacity:1}.thumb.active{opacity:1;border:2px solid #f5f2ec}
+    .thumb canvas{display:block;width:100%;height:100%;object-fit:contain}
+    .page-info{text-align:center;color:#a7a097;font-size:12px;padding:7px 0;background:#151513;flex:0 0 30px}
+    .error-box{max-width:520px;text-align:center;line-height:1.7;color:#b8b1a8;padding:30px}
+    .error-box strong{display:block;color:#f5f2ec;margin-bottom:8px}
+    @media(max-width:700px){
+      .viewer header{height:58px;padding:0 16px}.viewer-shell{height:calc(100vh - 58px)}
+      .viewer-bar{height:52px;flex-basis:52px;padding:0 12px}.viewer-title{max-width:48vw}.viewer-btn{padding:7px 10px}
+      .page-area{padding:12px 48px}.nav-btn{width:40px;height:40px;font-size:23px}.nav-btn#prevPage{left:8px}.nav-btn#nextPage{right:8px}
+      .thumbs{height:76px;flex-basis:76px;padding:8px 12px}.thumb{width:45px;height:58px}.page-info{height:28px;flex-basis:28px}
+    }
+  </style>
+</head>
+<body class="viewer">
+  <header>
+    <div class="brand">NOTEBOOKS</div>
+    <nav><a href="index.html">← Collections</a></nav>
+  </header>
+
+  <div class="viewer-shell">
+    <div class="viewer-bar">
+      <div class="viewer-title" id="title">Collection</div>
+      <div class="viewer-actions">
+        <button class="viewer-btn" id="zoomOut" type="button">−</button>
+        <button class="viewer-btn" id="zoomReset" type="button">100%</button>
+        <button class="viewer-btn" id="zoomIn" type="button">+</button>
+        <button class="viewer-btn" id="fullscreen" type="button">Fullscreen</button>
+      </div>
+    </div>
+
+    <main class="viewer-main">
+      <section class="page-area" id="pageArea">
+        <div class="loading" id="loading">Loading designs…</div>
+        <div class="error-box" id="errorBox" hidden></div>
+        <button class="nav-btn" id="prevPage" aria-label="Previous page">‹</button>
+        <canvas id="pdfCanvas"></canvas>
+        <button class="nav-btn" id="nextPage" aria-label="Next page">›</button>
+      </section>
+    </main>
+
+    <div class="page-info" id="pageInfo">— / —</div>
+    <div class="thumbs" id="thumbs" aria-label="Page thumbnails"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const q = new URLSearchParams(location.search);
+    const pdfUrl = q.get('pdf');
+    const title = q.get('title') || 'Collection';
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    const pageArea = document.getElementById('pageArea');
+    const thumbs = document.getElementById('thumbs');
+    const loading = document.getElementById('loading');
+    const errorBox = document.getElementById('errorBox');
+    const pageInfo = document.getElementById('pageInfo');
+    const prev = document.getElementById('prevPage');
+    const next = document.getElementById('nextPage');
+
+    document.getElementById('title').textContent = title;
+    document.title = title + ' — Notebook Viewer';
+
+    let pdfDoc = null;
+    let pageNum = 1;
+    let zoom = 1;
+    let rendering = false;
+    let pendingPage = null;
+    let resizeTimer;
+
+    function showError(message) {
+      loading.classList.add('hidden');
+      canvas.style.display = 'none';
+      errorBox.hidden = false;
+      errorBox.innerHTML = '<strong>Unable to open this collection</strong>' + message;
+    }
+
+    async function renderPage(num) {
+      if (!pdfDoc) return;
+      if (rendering) { pendingPage = num; return; }
+      rendering = true;
+
+      const page = await pdfDoc.getPage(num);
+      const base = page.getViewport({ scale: 1 });
+      const availableW = Math.max(180, pageArea.clientWidth - 110);
+      const availableH = Math.max(180, pageArea.clientHeight - 44);
+      const fit = Math.min(availableW / base.width, availableH / base.height);
+      const scale = fit * zoom;
+      const viewport = page.getViewport({ scale });
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      canvas.style.width = Math.floor(viewport.width) + 'px';
+      canvas.style.height = Math.floor(viewport.height) + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      pageNum = num;
+      pageInfo.textContent = pageNum + ' / ' + pdfDoc.numPages;
+      prev.disabled = pageNum <= 1;
+      next.disabled = pageNum >= pdfDoc.numPages;
+      [...thumbs.children].forEach((el, i) => el.classList.toggle('active', i + 1 === pageNum));
+
+      rendering = false;
+      if (pendingPage !== null) { const p = pendingPage; pendingPage = null; renderPage(p); }
+    }
+
+    async function buildThumbnails() {
+      thumbs.innerHTML = '';
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const button = document.createElement('button');
+        button.className = 'thumb';
+        button.type = 'button';
+        button.title = 'Page ' + i;
+        const c = document.createElement('canvas');
+        button.appendChild(c);
+        thumbs.appendChild(button);
+        button.addEventListener('click', () => renderPage(i));
+
+        const page = await pdfDoc.getPage(i);
+        const viewport = page.getViewport({ scale: 0.18 });
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        c.width = Math.ceil(viewport.width * dpr);
+        c.height = Math.ceil(viewport.height * dpr);
+        c.style.width = '100%';
+        c.style.height = '100%';
+        await page.render({ canvasContext: c.getContext('2d'), viewport }).promise;
+      }
+    }
+
+    async function openPdf() {
+      if (!pdfUrl) { showError('No PDF was specified.'); return; }
+      try {
+        pdfDoc = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
+        loading.classList.add('hidden');
+        await buildThumbnails();
+        await renderPage(1);
+      } catch (err) {
+        console.error(err);
+        showError('Check that the PDF exists in the <code>collections</code> folder.');
+      }
+    }
+
+    prev.addEventListener('click', () => { if (pageNum > 1) renderPage(pageNum - 1); });
+    next.addEventListener('click', () => { if (pdfDoc && pageNum < pdfDoc.numPages) renderPage(pageNum + 1); });
+
+    document.getElementById('zoomIn').addEventListener('click', () => { zoom = Math.min(2.5, +(zoom + .1).toFixed(2)); renderPage(pageNum); });
+    document.getElementById('zoomOut').addEventListener('click', () => { zoom = Math.max(.6, +(zoom - .1).toFixed(2)); renderPage(pageNum); });
+    document.getElementById('zoomReset').addEventListener('click', () => { zoom = 1; renderPage(pageNum); });
+
+    document.getElementById('fullscreen').addEventListener('click', async () => {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
+      else await document.exitFullscreen?.();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); if (pageNum > 1) renderPage(pageNum - 1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); if (pdfDoc && pageNum < pdfDoc.numPages) renderPage(pageNum + 1); }
+      if (e.key === '+' || e.key === '=') { zoom = Math.min(2.5, +(zoom + .1).toFixed(2)); renderPage(pageNum); }
+      if (e.key === '-') { zoom = Math.max(.6, +(zoom - .1).toFixed(2)); renderPage(pageNum); }
+      if (e.key === '0') { zoom = 1; renderPage(pageNum); }
+      if (e.key === 'f' || e.key === 'F') document.getElementById('fullscreen').click();
+    });
+
+    pageArea.addEventListener('wheel', e => {
+      if (e.ctrlKey || e.metaKey) return;
+      if (Math.abs(e.deltaY) < 10) return;
+      if (e.deltaY > 0 && pdfDoc && pageNum < pdfDoc.numPages) renderPage(pageNum + 1);
+      if (e.deltaY < 0 && pageNum > 1) renderPage(pageNum - 1);
+    }, { passive: true });
+
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { if (pdfDoc) renderPage(pageNum); }, 150);
+    });
+
+    let touchStartX = 0;
+    pageArea.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
+    pageArea.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(dx) < 45 || !pdfDoc) return;
+      if (dx < 0 && pageNum < pdfDoc.numPages) renderPage(pageNum + 1);
+      if (dx > 0 && pageNum > 1) renderPage(pageNum - 1);
+    }, { passive: true });
+
+    openPdf();
+  </script>
+</body>
+</html>
