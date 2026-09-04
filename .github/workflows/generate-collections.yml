@@ -1,0 +1,59 @@
+name: Update Collections
+
+on:
+  push:
+    paths:
+      - "collections/*.pdf"
+      - "collections/**/*.pdf"
+
+permissions:
+  contents: write
+
+jobs:
+  update-collections:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate collections.json
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          collections_dir = Path("collections")
+          output = []
+
+          for pdf in sorted(collections_dir.rglob("*.pdf")):
+              filename = pdf.stem
+
+              # Turn filename into a readable title
+              title = filename.replace("-", " ").replace("_", " ").title()
+
+              output.append({
+                  "title": title,
+                  "description": "Notebook design collection.",
+                  "pdf": pdf.as_posix(),
+                  "cover": ""
+              })
+
+          with open("collections.json", "w", encoding="utf-8") as f:
+              json.dump(output, f, indent=2, ensure_ascii=False)
+              f.write("\n")
+          PY
+
+      - name: Save updated collections.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add collections.json
+
+          if git diff --cached --quiet; then
+            echo "No changes to collections.json"
+          else
+            git commit -m "Update collections list"
+            git push
+          fi
