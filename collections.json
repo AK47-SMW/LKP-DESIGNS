@@ -1,1 +1,20 @@
-
+[
+  {
+    "title": "2026 Collection",
+    "description": "Latest hardcover notebook designs.",
+    "pdf": "collections/2026.pdf",
+    "cover": ""
+  },
+  {
+    "title": "Floral Collection",
+    "description": "Botanical and floral cover concepts.",
+    "pdf": "collections/floral.pdf",
+    "cover": ""
+  },
+  {
+    "title": "Corporate Collection",
+    "description": "Clean, professional notebook covers.",
+    "pdf": "collections/corporate.pdf",
+    "cover": ""
+  }
+]
